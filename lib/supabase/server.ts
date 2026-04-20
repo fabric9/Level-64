@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 
 export function getServerSupabase() {
   const cookieStore = cookies();
@@ -9,7 +9,7 @@ export function getServerSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) {
+        get(name: string) {
           return cookieStore.get(name)?.value;
         },
         set() {},
