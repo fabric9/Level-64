@@ -24,13 +24,42 @@ export async function startRun() {
     redirect('/dashboard?run=exists');
   }
 
-  const { error } = await supabase
+  const { data: newRun } = await supabase
     .from('player_runs')
-    .insert({ player_id: user.id, current_level: 1, status: 'queued' });
+    .insert({ player_id: user.id, current_level: 1, status: 'queued' })
+    .select()
+    .single();
 
-  if (error) {
+  if (!newRun) {
     redirect('/dashboard?error=run-failed');
   }
 
-  redirect('/dashboard?run=created');
+  // simple matchmaking
+  const { data: opponentRuns } = await supabase
+    .from('player_runs')
+    .select('*')
+    .eq('current_level', 1)
+    .eq('status', 'queued')
+    .neq('id', newRun.id)
+    .limit(1);
+
+  if (opponentRuns && opponentRuns.length > 0) {
+    const opponent = opponentRuns[0];
+
+    await supabase.from('matches').insert({
+      level_number: 1,
+      player_a_id: newRun.player_id,
+      player_b_id: opponent.player_id,
+      run_a_id: newRun.id,
+      run_b_id: opponent.id,
+      status: 'pending'
+    });
+
+    await supabase
+      .from('player_runs')
+      .update({ status: 'active' })
+      .in('id', [newRun.id, opponent.id]);
+  }
+
+  redirect('/dashboard');
 }
