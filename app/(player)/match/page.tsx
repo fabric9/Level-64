@@ -13,7 +13,7 @@ export default async function MatchPage() {
     .from('matches')
     .select('*')
     .or(`player_a_id.eq.${user.id},player_b_id.eq.${user.id}`)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'active'])
     .maybeSingle();
 
   if (!match) {
@@ -22,16 +22,30 @@ export default async function MatchPage() {
 
   const opponentId = match.player_a_id === user.id ? match.player_b_id : match.player_a_id;
 
-  return (
-    <main style={{ padding: 40 }}>
-      <h1>Match Found</h1>
-      <p>Opponent ID: {opponentId}</p>
+  const { data: opponentProfile } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', opponentId)
+    .single();
 
-      <form action={submitResult}>
-        <input type="hidden" name="matchId" value={match.id} />
-        <input type="hidden" name="winnerId" value={user.id} />
-        <button type="submit">Declare Win</button>
-      </form>
+  return (
+    <main style={{ minHeight: '100vh', padding: 32, background: '#020617', color: '#fff' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
+        <h1>Match Ready</h1>
+        <p style={{ opacity: 0.8 }}>
+          You are paired against <strong>{opponentProfile?.username || opponentId}</strong>
+        </p>
+
+        <div style={{ marginTop: 30 }}>
+          <form action={submitResult}>
+            <input type="hidden" name="matchId" value={match.id} />
+            <input type="hidden" name="winnerId" value={user.id} />
+            <button style={{ padding: '16px 24px', borderRadius: 12, background: '#16a34a', border: 'none', color: '#fff', fontWeight: 800 }}>
+              Declare Win
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }
