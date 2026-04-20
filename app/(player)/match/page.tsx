@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase/server';
 import { ensureProfile } from '@/lib/auth/ensureProfile';
-import { submitResult } from './actions';
+import { submitResult } from '@/app/(player)/match/actions';
 
 export default async function MatchPage() {
   const user = await ensureProfile();
