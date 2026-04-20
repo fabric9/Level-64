@@ -17,7 +17,11 @@ export default async function PlayerDashboard() {
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'player') {
+  if (!profile?.username) {
+    redirect('/onboarding');
+  }
+
+  if (profile.role !== 'player') {
     redirect('/admin');
   }
 
