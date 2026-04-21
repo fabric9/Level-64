@@ -60,10 +60,26 @@ export default async function PlayerDashboard({ searchParams }: any) {
     redirect('/player/match');
   }
 
+  const { data: recentResults } = await supabase
+    .from('match_results')
+    .select('*')
+    .or(`winner_player_id.eq.${user.id},loser_player_id.eq.${user.id}`)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const { data: ratingEvents } = await supabase
+    .from('rating_events')
+    .select('*')
+    .eq('player_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
   const currentLevel = run?.current_level || 1;
   const runStatus = run ? run.status : 'Ready to begin';
   const feedback = getResultMessage(searchParams?.result, searchParams?.error);
   const levels = Array.from({ length: 16 }, (_, i) => i + 1);
+
+  const ratingByMatch = new Map((ratingEvents || []).map((e: any) => [e.match_id, e]));
 
   return (
     <main style={{ minHeight: '100vh', padding: 32, background: 'linear-gradient(180deg, #06130f, #0f172a)', color: '#fff' }}>
@@ -91,12 +107,16 @@ export default async function PlayerDashboard({ searchParams }: any) {
             <div style={{ fontSize: 30, fontWeight: 800 }}>{runStatus}</div>
           </div>
           <div style={cardStyle}>
-            <div style={{ fontSize: 13, opacity: 0.72, marginBottom: 8 }}>Match Room</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{run ? 'Ready when paired' : 'No active run'}</div>
+            <div style={{ fontSize: 13, opacity: 0.72, marginBottom: 8 }}>Rating</div>
+            <div style={{ fontSize: 30, fontWeight: 800 }}>{profile.rating ?? 1200}</div>
+          </div>
+          <div style={cardStyle}>
+            <div style={{ fontSize: 13, opacity: 0.72, marginBottom: 8 }}>Record</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{profile.wins ?? 0}W / {profile.losses ?? 0}L</div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 16, marginBottom: 16 }}>
           <div style={cardStyle}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Level Ladder</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
@@ -142,6 +162,54 @@ export default async function PlayerDashboard({ searchParams }: any) {
             <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
               <Link href="/player/match" style={{ color: '#93c5fd', textDecoration: 'none' }}>Open Match Room</Link>
               <Link href="/onboarding" style={{ color: '#cbd5e1', textDecoration: 'none' }}>Edit Profile</Link>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Recent Match History</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {(recentResults || []).length === 0 && <div style={{ opacity: 0.72 }}>No matches recorded yet.</div>}
+              {(recentResults || []).map((result: any) => {
+                const didWin = result.winner_player_id === user.id;
+                const ratingEvent = ratingByMatch.get(result.match_id);
+                return (
+                  <div key={result.id} style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{didWin ? 'Win' : 'Loss'} · Level {result.level_number}</div>
+                        <div style={{ opacity: 0.72, fontSize: 13 }}>{new Date(result.created_at).toLocaleString()}</div>
+                      </div>
+                      {ratingEvent && (
+                        <div style={{ fontWeight: 700, color: ratingEvent.delta >= 0 ? '#4ade80' : '#f87171' }}>
+                          {ratingEvent.delta >= 0 ? '+' : ''}{ratingEvent.delta}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Recent Rating Events</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {(ratingEvents || []).length === 0 && <div style={{ opacity: 0.72 }}>No rating changes yet.</div>}
+              {(ratingEvents || []).map((event: any) => (
+                <div key={event.id} style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{event.old_rating} → {event.new_rating}</div>
+                      <div style={{ opacity: 0.72, fontSize: 13 }}>{new Date(event.created_at).toLocaleString()}</div>
+                    </div>
+                    <div style={{ fontWeight: 700, color: event.delta >= 0 ? '#4ade80' : '#f87171' }}>
+                      {event.delta >= 0 ? '+' : ''}{event.delta}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
