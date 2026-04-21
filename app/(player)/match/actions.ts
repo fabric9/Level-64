@@ -3,6 +3,13 @@
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase/server';
 
+function calc(oldA: number, oldB: number, scoreA: number) {
+  const K = 32;
+  const expectedA = 1 / (1 + Math.pow(10, (oldB - oldA) / 400));
+  const newA = Math.round(oldA + K * (scoreA - expectedA));
+  return { newA, delta: newA - oldA };
+}
+
 export async function submitResult(formData: FormData) {
   const supabase = getServerSupabase();
 
@@ -54,7 +61,13 @@ export async function submitResult(formData: FormData) {
   const winningRun = match.player_a_id === winnerId ? match.run_a_id : match.run_b_id;
   const losingRun = match.player_a_id === winnerId ? match.run_b_id : match.run_a_id;
 
-  const { error: insertError } = await supabase.from('match_results').insert({
+  const { data: winnerProfile } = await supabase.from('profiles').select('*').eq('id', winnerId).single();
+  const { data: loserProfile } = await supabase.from('profiles').select('*').eq('id', loserId).single();
+
+  const w = calc(winnerProfile.rating, loserProfile.rating, 1);
+  const l = calc(loserProfile.rating, winnerProfile.rating, 0);
+
+  await supabase.from('match_results').insert({
     match_id: matchId,
     winner_player_id: winnerId,
     loser_player_id: loserId,
@@ -64,46 +77,18 @@ export async function submitResult(formData: FormData) {
     result_type: 'adjudicated'
   });
 
-  if (insertError) {
-    redirect('/dashboard?error=result-failed');
-  }
+  await supabase.from('matches').update({ status: 'completed' }).eq('id', matchId);
 
-  const { error: matchUpdateError } = await supabase
-    .from('matches')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
-    .eq('id', matchId)
-    .in('status', ['pending', 'active']);
+  await supabase.from('player_runs').update({ current_level: match.level_number + 1, status: 'queued' }).eq('id', winningRun);
+  await supabase.from('player_runs').update({ status: 'eliminated' }).eq('id', losingRun);
 
-  if (matchUpdateError) {
-    redirect('/dashboard?error=match-update-failed');
-  }
+  await supabase.from('profiles').update({ rating: w.newA, wins: winnerProfile.wins + 1 }).eq('id', winnerId);
+  await supabase.from('profiles').update({ rating: l.newA, losses: loserProfile.losses + 1 }).eq('id', loserId);
 
-  const { error: winnerUpdateError } = await supabase
-    .from('player_runs')
-    .update({
-      current_level: match.level_number + 1,
-      status: 'queued',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', winningRun)
-    .in('status', ['pending', 'active', 'queued']);
-
-  if (winnerUpdateError) {
-    redirect('/dashboard?error=winner-update-failed');
-  }
-
-  const { error: loserUpdateError } = await supabase
-    .from('player_runs')
-    .update({
-      status: 'eliminated',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', losingRun)
-    .in('status', ['pending', 'active', 'queued']);
-
-  if (loserUpdateError) {
-    redirect('/dashboard?error=loser-update-failed');
-  }
+  await supabase.from('rating_events').insert([
+    { player_id: winnerId, match_id: matchId, old_rating: winnerProfile.rating, new_rating: w.newA, delta: w.delta },
+    { player_id: loserId, match_id: matchId, old_rating: loserProfile.rating, new_rating: l.newA, delta: l.delta }
+  ]);
 
   redirect('/dashboard?result=submitted');
 }
