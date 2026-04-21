@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getServerSupabase } from '@/lib/supabase/server';
 
 const cardStyle: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,0.12)',
@@ -7,7 +8,17 @@ const cardStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)',
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = getServerSupabase();
+
+  const [{ count: profilesCount }, { count: matchesCount }, { count: queuedRunsCount }] = await Promise.all([
+    supabase.from('profiles').select('*', { count: 'exact', head: true }),
+    supabase.from('matches').select('*', { count: 'exact', head: true }).in('status', ['pending', 'active']),
+    supabase.from('player_runs').select('*', { count: 'exact', head: true }).eq('status', 'queued'),
+  ]);
+
+  const ladderPreview = Array.from({ length: 16 }, (_, i) => i + 1);
+
   return (
     <main
       style={{
@@ -48,7 +59,7 @@ export default function HomePage() {
         <section
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.25fr 0.85fr',
+            gridTemplateColumns: '1.18fr 0.82fr',
             gap: 20,
             marginBottom: 22,
           }}
@@ -99,27 +110,30 @@ export default function HomePage() {
                 Open Player Command
               </Link>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 24 }}>
+              <div style={cardStyle}>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Players</div>
+                <div style={{ fontSize: 28, fontWeight: 800 }}>{profilesCount ?? 0}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Active Matches</div>
+                <div style={{ fontSize: 28, fontWeight: 800 }}>{matchesCount ?? 0}</div>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Queued Runs</div>
+                <div style={{ fontSize: 28, fontWeight: 800 }}>{queuedRunsCount ?? 0}</div>
+              </div>
+            </div>
           </div>
 
           <div style={cardStyle}>
-            <div style={{ fontSize: 13, opacity: 0.72, marginBottom: 10 }}>SYSTEM STATUS</div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 14, opacity: 0.7 }}>Auth</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>Live</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 14, opacity: 0.7 }}>Profiles & Roles</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>Active</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 14, opacity: 0.7 }}>Admin Controls</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>Online</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 14, opacity: 0.7 }}>Run Engine</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>Level 1 Ready</div>
-              </div>
+            <div style={{ fontSize: 13, opacity: 0.72, marginBottom: 10 }}>HOW IT FLOWS</div>
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div><strong>1.</strong> Sign in and initialize your player identity.</div>
+              <div><strong>2.</strong> Enter Level 1 and join the run queue.</div>
+              <div><strong>3.</strong> Get paired, compete, and submit outcome.</div>
+              <div><strong>4.</strong> Advance up the progression ladder toward Level 64.</div>
             </div>
           </div>
         </section>
@@ -127,10 +141,37 @@ export default function HomePage() {
         <section
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gridTemplateColumns: '1fr 1fr',
             gap: 16,
+            marginBottom: 20,
           }}
         >
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Ladder Preview</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+              {ladderPreview.map((level) => (
+                <div key={level} style={{ borderRadius: 14, padding: 14, border: '1px solid rgba(255,255,255,0.12)', background: level === 1 ? 'rgba(34,197,94,0.22)' : 'rgba(255,255,255,0.03)' }}>
+                  <div style={{ fontSize: 12, opacity: 0.72 }}>Level</div>
+                  <div style={{ fontSize: 22, fontWeight: 800 }}>{level}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>System Status</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div><strong>Auth:</strong> Live</div>
+              <div><strong>Profiles & Roles:</strong> Active</div>
+              <div><strong>Admin Controls:</strong> Online</div>
+              <div><strong>Run Engine:</strong> Live</div>
+              <div><strong>Matchmaking:</strong> Online</div>
+              <div><strong>Result Security:</strong> Guarded</div>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
           <div style={cardStyle}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Sponsored Entry</div>
             <div style={{ opacity: 0.78, lineHeight: 1.6 }}>
@@ -146,7 +187,7 @@ export default function HomePage() {
           <div style={cardStyle}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Admin Governance</div>
             <div style={{ opacity: 0.78, lineHeight: 1.6 }}>
-              Identity, roles, queues, and future withdrawals are designed to remain under platform control.
+              Identity, roles, queues, and future withdrawals remain under platform control.
             </div>
           </div>
         </section>
